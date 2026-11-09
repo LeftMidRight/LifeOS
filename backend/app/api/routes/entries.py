@@ -6,8 +6,22 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import AwareDatetime
 
 from app.api.deps import SessionDep
-from app.repositories.entries import get_entry, list_entries
-from app.schemas import EntryListResponse, EntryRead, Kind, ListQuery, TodoStatus
+from app.repositories.entries import (
+    create_entry as repo_create_entry,
+    delete_entry as repo_delete_entry,
+    get_entry,
+    list_entries,
+    update_entry as repo_update_entry,
+)
+from app.schemas import (
+    EntryCreate,
+    EntryListResponse,
+    EntryPatch,
+    EntryRead,
+    Kind,
+    ListQuery,
+    TodoStatus,
+)
 
 router = APIRouter(prefix="/entries", tags=["entries"])
 
@@ -47,3 +61,25 @@ async def get_entry_route(entry_id: str, session: SessionDep) -> EntryRead:
     if entry is None:
         raise HTTPException(status_code=404, detail="记录不存在")
     return EntryRead.model_validate(entry)
+
+
+@router.post("", response_model=EntryRead, status_code=201)
+async def create_entry_route(payload: EntryCreate, session: SessionDep) -> EntryRead:
+    entry = await repo_create_entry(session, payload)
+    return EntryRead.model_validate(entry)
+
+
+@router.patch("/{entry_id}", response_model=EntryRead)
+async def update_entry_route(
+    entry_id: str, payload: EntryPatch, session: SessionDep
+) -> EntryRead:
+    entry = await repo_update_entry(session, entry_id, payload)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    return EntryRead.model_validate(entry)
+
+
+@router.delete("/{entry_id}", status_code=204)
+async def delete_entry_route(entry_id: str, session: SessionDep) -> None:
+    if not await repo_delete_entry(session, entry_id):
+        raise HTTPException(status_code=404, detail="记录不存在")
