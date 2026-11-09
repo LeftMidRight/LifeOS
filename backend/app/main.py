@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.routes.capture import router as capture_router
 from app.api.routes.entries import router as entries_router
 from app.api.routes.health import router as health_router
 from app.api.routes.stats import router as stats_router
@@ -54,6 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router, prefix="/api")
     app.include_router(entries_router, prefix="/api")
+    app.include_router(capture_router, prefix="/api")
     app.include_router(stats_router, prefix="/api")
     return app
 
