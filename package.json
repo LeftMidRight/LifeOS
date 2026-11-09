@@ -8,19 +8,17 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/index.ts",
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "cd backend && uv run uvicorn app.main:app --reload --port 8787",
     "dev:web": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts",
-    "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/index.ts",
-    "seed": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/seed.ts",
+    "start": "cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8787",
+    "seed": "cd backend && uv run python scripts/seed.py",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node shared/capture.test.ts"
+    "test": "node shared/capture.test.ts",
+    "test:py": "cd backend && uv run pytest"
   },
   "dependencies": {
-    "@fastify/cors": "^10.0.1",
-    "@fastify/static": "^8.0.3",
-    "fastify": "^5.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.24.1"
@@ -31,7 +29,6 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.0",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
   }

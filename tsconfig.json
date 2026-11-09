@@ -18,5 +18,5 @@
     "verbatimModuleSyntax": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["shared/**/*.ts", "server/**/*.ts", "web/src/**/*.ts", "web/src/**/*.tsx", "web/vite.config.ts"]
+  "include": ["shared/**/*.ts", "web/src/**/*.ts", "web/src/**/*.tsx", "web/vite.config.ts"]
 }
