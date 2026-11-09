@@ -1,0 +1,23 @@
+node_modules/
+dist/
+data/
+.env
+.env.local
+*.log
+.DS_Store
+.vite/
+
+# 本地缓存 / 调试残留
+.npm-cache/
+.pnpm-home/
+.tmp-*
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
