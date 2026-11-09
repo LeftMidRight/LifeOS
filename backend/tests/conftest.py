@@ -17,7 +17,7 @@ if _env_file.exists():
 test_url = os.environ.get("LIFEOS_TEST_DATABASE_URL")
 if not test_url:
     raise RuntimeError("LIFEOS_TEST_DATABASE_URL 未设置；测试必须使用独立测试库")
-os.environ.setdefault("LIFEOS_DATABASE_URL", test_url)
+os.environ["LIFEOS_DATABASE_URL"] = test_url
 
 from collections.abc import AsyncIterator  # noqa: E402
 
