@@ -1,7 +1,8 @@
+from datetime import datetime
+
 from fastapi import APIRouter
 
 from app.api.deps import SessionDep
-from app.core.time import utcnow
 from app.repositories.entries import create_entry
 from app.schemas import CaptureParsed, CaptureRequest, CaptureResponse, EntryCreate, EntryRead
 from app.services.capture import parse_capture
@@ -11,7 +12,7 @@ router = APIRouter(tags=["capture"])
 
 @router.post("/capture", response_model=CaptureResponse, status_code=201)
 async def capture_route(payload: CaptureRequest, session: SessionDep) -> CaptureResponse:
-    now = payload.at or utcnow()
+    now = payload.at or datetime.now().astimezone()
     parsed = parse_capture(payload.text, now)
     entry = await create_entry(
         session,

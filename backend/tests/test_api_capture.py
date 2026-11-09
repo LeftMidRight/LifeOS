@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timedelta, timezone
 
 from httpx import AsyncClient
 
@@ -49,6 +50,43 @@ async def test_capture_extracts_tags(client: AsyncClient):
         "/api/capture",
         json={"text": "产品想法 #产品 #灵感", "at": "2026-11-09T15:30:00.000+08:00"},
     )
+    assert response.status_code == 201
     body = response.json()
     assert body["entry"]["tags"] == ["产品", "灵感"]
     assert "#" not in body["entry"]["content"]
+    assert body["entry"]["meta"]["captureNote"] == "记为闪念"
+    assert "confidence" in body["entry"]["meta"]
+
+
+async def test_capture_caps_tags_at_twenty(client: AsyncClient):
+    tags = [f"标签{i}" for i in range(1, 22)]
+    text = "记录想法 " + " ".join(f"#{tag}" for tag in tags)
+
+    response = await client.post(
+        "/api/capture",
+        json={"text": text, "at": "2026-11-09T15:30:00.000+08:00"},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["entry"]["tags"] == tags[:20]
+    assert len(body["parsed"]["tags"]) == 20
+
+
+async def test_capture_without_at_uses_local_now(client: AsyncClient, monkeypatch):
+    import app.api.routes.capture as capture_route
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            fixed = datetime(2026, 11, 9, 15, 30, tzinfo=timezone(timedelta(hours=8)))
+            return fixed if tz is None else fixed.astimezone(tz)
+
+    monkeypatch.setattr(capture_route, "datetime", FixedDatetime)
+
+    response = await client.post("/api/capture", json={"text": "记得明天交房租"})
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["parsed"]["dueAt"] == "2026-11-10T01:00:00.000Z"
+    assert body["entry"]["occurredAt"] == "2026-11-09T07:30:00.000Z"

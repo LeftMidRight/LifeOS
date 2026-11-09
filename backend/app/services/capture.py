@@ -196,11 +196,11 @@ def parse_due_date(text: str, now: datetime | None = None) -> DueDate | None:
             candidate = now.replace(
                 month=month, day=day, hour=9, minute=0, second=0, microsecond=0
             )
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            if candidate < today_start:
+                candidate = candidate.replace(year=candidate.year + 1)
         except ValueError:
             return None
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        if candidate < today_start:
-            candidate = candidate.replace(year=candidate.year + 1)
         return DueDate(apply_hour(candidate), month_day.group(0))
 
     return None
@@ -217,6 +217,8 @@ def parse_capture(raw: str, now: datetime | None = None) -> CaptureResult:
         kind_hint = None
 
     tags, text = extract_tags(text)
+    # 与 EntryCreate 契约对齐，保证 parsed 与入库使用同一份标签列表
+    tags = tags[:20]
     amount_hit = find_amount(text)
     category = detect_category(text)
     expense_verb = bool(EXPENSE_VERBS.search(text))

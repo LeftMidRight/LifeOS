@@ -111,3 +111,13 @@ def test_todo_prefix_strips_prefix():
 def test_expense_note_is_human_readable():
     result = parse_capture("午饭 32 元", NOW)
     assert result.note == "记录为支出 ¥32 · 餐饮"
+
+
+def test_due_date_leap_day_year_rollover_returns_none():
+    assert (
+        parse_due_date(
+            "2月29日交房租",
+            datetime(2028, 3, 1, 15, 30, tzinfo=timezone.utc),
+        )
+        is None
+    )
