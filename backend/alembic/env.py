@@ -19,7 +19,8 @@ def _sync_url() -> str:
     return get_settings().lifeos_database_url.replace("+aiomysql", "+pymysql")
 
 
-config.set_main_option("sqlalchemy.url", _sync_url())
+# ConfigParser 会对 % 做插值，URL 编码密码里的 % 必须转义成 %% 才能写入。
+config.set_main_option("sqlalchemy.url", _sync_url().replace("%", "%%"))
 target_metadata = Base.metadata
 
 

@@ -54,17 +54,26 @@ cp .env.example .env
 # 编辑 .env，填入上一步使用的 MySQL 密码
 ```
 
-### 3. 安装依赖、迁移、导入旧数据
+### 3. 安装依赖并迁移数据库
 
 ```bash
 npm install
 cd backend
 uv sync
 uv run alembic upgrade head
+```
+
+全新克隆到此即可。`data/` 已被 `.gitignore` 排除，不会包含旧 SQLite 文件。
+
+#### 可选：导入旧 SQLite 数据
+
+仅当 `data/lifeos.db` 存在（从旧版本升级）时，在 `backend/` 目录执行：
+
+```bash
 uv run python scripts/migrate_sqlite_to_mysql.py --verify
 ```
 
-`--verify` 会核对 entries 数量、按 kind 计数、支出合计和 ai_insights 数量；全部 `OK` 才继续。
+`--verify` 会核对 entries 数量、按 kind 计数、支出合计和 ai_insights 数量；全部 `OK` 才继续。全新克隆没有这个文件，跳过这一步。
 
 ## 开发
 
@@ -87,6 +96,18 @@ npm start          # FastAPI :8787，同时提供页面和接口
 局域网访问 http://192.168.1.7:8787   ← 手机用这个（同一 WiFi）
 ```
 
+## 故障排查
+
+### 启动时报「MySQL 数据库连接失败」
+
+服务启动时会先执行 `SELECT 1` 探测数据库，连不上会直接退出并打印数据库地址。先确认 MySQL 正在运行，账号密码与 `.env` 一致：
+
+```bash
+mysqladmin ping -h 127.0.0.1 -u lifeos -p
+# 或
+mysql -u lifeos -p -e "SELECT 1"
+```
+
 ## 命令
 
 ```bash
@@ -95,7 +116,7 @@ npm run build      # 构建前端到 dist/web
 npm start          # 生产模式，单端口 8787
 npm test           # 前端 TS 解析器测试
 npm run test:py    # 后端 pytest
-npm run seed       # 灌演示数据（--force 追加）
+npm run seed -- --force  # 灌演示数据（库里已有数据时追加）
 npm run typecheck  # 前端类型检查
 ```
 
@@ -109,8 +130,8 @@ uv run ruff check .
 ## 数据与备份
 
 - 数据库：MySQL `lifeos`
-- 备份：`mysqldump -u lifeos -p lifeos > lifeos-backup.sql`
-- 旧 `data/lifeos.db` 不再写入，保留用于回滚或对照
+- 备份：`mysqldump -u lifeos -p lifeos > lifeos-backup.sql`（该文件已在 `.gitignore` 中）
+- 旧 SQLite 库不再写入，保留用于回滚或对照。完整备份需要同时复制 `data/lifeos.db`、`data/lifeos.db-wal`、`data/lifeos.db-shm`；只复制 `.db` 可能丢失尚在 WAL 里的数据
 
 ## API
 
@@ -118,6 +139,7 @@ uv run ruff check .
 |---|---|---|
 | GET | `/api/health` | 服务状态、数据库、模型是否已配置 |
 | GET | `/api/entries?from&to&kind&status&q&tag&limit&offset` | 查询记录 |
+| GET | `/api/entries/:id` | 查询单条记录 |
 | POST | `/api/entries` | 新建 |
 | PATCH | `/api/entries/:id` | 部分更新 |
 | DELETE | `/api/entries/:id` | 软删除 |

@@ -14,9 +14,14 @@ if _env_file.exists():
         _key, _value = _line.split("=", 1)
         os.environ.setdefault(_key.strip(), _value.strip())
 
+production_url = os.environ.get("LIFEOS_DATABASE_URL")
 test_url = os.environ.get("LIFEOS_TEST_DATABASE_URL")
 if not test_url:
     raise RuntimeError("LIFEOS_TEST_DATABASE_URL 未设置；测试必须使用独立测试库")
+
+from tests.db_guard import validate_test_database_url  # noqa: E402
+
+validate_test_database_url(test_url, production_url)
 os.environ["LIFEOS_DATABASE_URL"] = test_url
 
 from collections.abc import AsyncIterator  # noqa: E402
@@ -55,7 +60,8 @@ sync_engine = create_engine(SYNC_TEST_URL, pool_pre_ping=True)
 @pytest.fixture(scope="session", autouse=True)
 def migrate_test_db():
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", SYNC_TEST_URL)
+    # ConfigParser 会做 % 插值，URL 编码密码里的 % 必须转义成 %% 才能写入。
+    config.set_main_option("sqlalchemy.url", SYNC_TEST_URL.replace("%", "%%"))
     command.upgrade(config, "head")
 
 

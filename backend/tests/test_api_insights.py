@@ -139,3 +139,39 @@ async def test_insights_falls_back_on_model_failure(
 
     assert body["insight"]["model"] == "local"
     assert "模型调用失败" in body["warning"]
+
+
+@pytest.mark.parametrize("scope", ["daily", "weekly"])
+async def test_insights_default_range_without_key(
+    client: AsyncClient, monkeypatch, scope: str
+):
+    monkeypatch.setenv("LLM_API_KEY", "")
+    get_settings.cache_clear()
+
+    response = await client.get(f"/api/insights?scope={scope}")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["insight"]["model"] == "local"
+    assert "未配置 LLM_API_KEY" in body["warning"]
+    assert body["insight"]["scope"] == scope
+    assert body["stats"]["from"].endswith("Z")
+    assert body["stats"]["to"].endswith("Z")
+    assert body["insight"]["from"].endswith("Z")
+    assert body["insight"]["to"].endswith("Z")
+    assert body["stats"]["from"] < body["stats"]["to"]
+
+
+async def test_insights_empty_range_with_key_falls_back_without_warning(
+    client: AsyncClient, llm_env
+):
+    # 配置了 LLM key，但范围内没有任何记录：走本地摘要，且不产生 warning。
+    response = await client.get("/api/insights?scope=daily")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["insight"]["model"] == "local"
+    assert body["warning"] is None
+    assert body["stats"]["entryCount"] == 0
+    assert body["stats"]["from"].endswith("Z")
+    assert body["stats"]["to"].endswith("Z")

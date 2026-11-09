@@ -9,6 +9,8 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes.capture import router as capture_router
@@ -45,6 +47,16 @@ def _lan_urls(port: int) -> list[str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = app.state.settings
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+    except SQLAlchemyError as error:
+        logger.error(
+            "MySQL 数据库连接失败：%s。请确认 MySQL 已启动，并检查 .env 中的账号、密码与库名。错误：%s",
+            settings.safe_database_url,
+            error,
+        )
+        raise
     logger.info("LifeOS v%s 已启动", VERSION)
     logger.info("本机访问   http://localhost:%s", settings.lifeos_port)
     for url in _lan_urls(settings.lifeos_port):
@@ -54,6 +66,28 @@ async def lifespan(app: FastAPI):
         logger.info("未检测到 dist/web：开发模式请用 npm run dev（前端 5173，接口 8787）")
     yield
     await engine.dispose()
+
+
+class HeadMethodMiddleware:
+    """把 HEAD 请求内部当作 GET 路由，并丢弃响应体，保留响应头。"""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http" or scope["method"] != "HEAD":
+            await self.app(scope, receive, send)
+            return
+
+        rewritten = dict(scope)
+        rewritten["method"] = "GET"
+
+        async def send_without_body(message) -> None:
+            if message["type"] == "http.response.body":
+                message = {**message, "body": b""}
+            await send(message)
+
+        await self.app(rewritten, receive, send_without_body)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -66,6 +100,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(HeadMethodMiddleware)
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -89,11 +124,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(stats_router, prefix="/api")
     app.include_router(insights_router, prefix="/api")
 
+    # 所有未匹配的 /api 路径（任意方法）都按 spec §8.4 返回 404 JSON。
+    api_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
+
+    @app.api_route("/api", methods=api_methods, include_in_schema=False)
+    async def api_root_not_found() -> JSONResponse:
+        return JSONResponse(status_code=404, content={"error": "接口不存在"})
+
+    @app.api_route("/api/{full_path:path}", methods=api_methods, include_in_schema=False)
+    async def api_not_found(full_path: str) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"error": "接口不存在"})
+
     @app.api_route("/{full_path:path}", methods=["GET"])
     async def spa_fallback(full_path: str):
-        if full_path == "api" or full_path.startswith("api/"):
-            return JSONResponse(status_code=404, content={"error": "接口不存在"})
-
         web_root = _web_root(settings)
         index = web_root / "index.html"
         if not index.is_file():
