@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 interface Props {
-  dayKey: string;
+  /** localStorage 草稿键：编辑已有日记用 entry id，新写一篇用 dayKey + new，互不覆盖 */
+  draftKey: string;
   /** 已有的日记内容；为空表示新写 */
   initial: string;
   dayLabel: string;
@@ -17,9 +18,7 @@ interface Props {
  *  2. 衬线字、行高 2.0、每行 760px —— 长文阅读的舒适区，不是表单的密度；
  *  3. 草稿实时存 localStorage —— 没保存就关掉不会丢，重进自动恢复。
  */
-export default function DiaryEditor({ dayKey, initial, dayLabel, onClose, onSave }: Props) {
-  const draftKey = `lifeos:draft:${dayKey}`;
-
+export default function DiaryEditor({ draftKey, initial, dayLabel, onClose, onSave }: Props) {
   const [text, setText] = useState(() => {
     try {
       return localStorage.getItem(draftKey) ?? initial;

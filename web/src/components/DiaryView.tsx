@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { Entry } from '../../../shared/schema.ts';
 import { addDays, formatClock, humanDay, toDayKey, weekdayName } from '../../../shared/date.ts';
 import { api } from '../api.ts';
 import DiaryEditor from './DiaryEditor.tsx';
@@ -16,28 +17,28 @@ function fullDayLabel(dayKey: string): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${weekdayName(d)}`;
 }
 
+/** 编辑器状态：null = 关闭；'new' = 新写一篇；entry = 编辑这一篇 */
+type Editing = { mode: 'new' } | { mode: 'edit'; entry: Entry } | null;
+
 /**
- * 日记视图：一天一篇。
- *
- * 为什么不是「再做一个独立的日记表」：日记在这个系统里就是 kind=journal 的记录，
- * 所以今天在「捕捉」里随手写的一大段话，打开日记页会直接出现，编辑后就是正式日记。
- * 一条流的好处在这里兑现 —— 不需要「导入」「合并」这种动作。
+ * 日记视图：当天的日记按时间倒序列成记录列表，和「捕捉」是同一种心智模型——
+ * 写一篇、保存，它就成为下面的一条记录；一天可以写多篇，每篇都能继续编辑。
+ * 日记仍然是 kind=journal 的一条流，不做独立的日记表；全屏编辑器只负责写，保存后立即关闭。
  */
 export default function DiaryView({ entries, refresh, notify }: ViewProps) {
   const today = toDayKey(new Date());
   const [dayKey, setDayKey] = useState(today);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<Editing>(null);
 
   const dayEntries = useMemo(() => entries.filter((entry) => toDayKey(entry.occurredAt) === dayKey), [entries, dayKey]);
 
-  const diary = useMemo(() => {
-    const journals = dayEntries.filter((entry) => entry.kind === 'journal');
-    if (journals.length === 0) return null;
-    return [...journals].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
-  }, [dayEntries]);
-
-  // 日记视图只展示当天的日记；闪念/记账/待办等全部类型在「时间线」查看。
-  // 保存成功后不再 await refresh，避免刷新慢时把编辑器卡在「保存中…」。
+  const diaries = useMemo(
+    () =>
+      dayEntries
+        .filter((entry) => entry.kind === 'journal')
+        .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.createdAt.localeCompare(a.createdAt)),
+    [dayEntries],
+  );
 
   function shift(delta: number) {
     const next = toDayKey(addDays(dayDate(dayKey), delta));
@@ -45,10 +46,9 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
     setDayKey(next);
   }
 
-  async function removeDiary() {
-    if (!diary) return;
+  async function removeDiary(entry: Entry) {
     try {
-      await api.remove(diary.id);
+      await api.remove(entry.id);
       await refresh();
       notify('日记已删除');
     } catch (error) {
@@ -57,9 +57,10 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
   }
 
   async function saveDiary(value: string) {
+    const current = editing;
     try {
-      if (diary) {
-        await api.update(diary.id, { content: value });
+      if (current?.mode === 'edit') {
+        await api.update(current.entry.id, { content: value });
         notify('日记已更新');
       } else {
         const base = dayDate(dayKey);
@@ -76,13 +77,14 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
         });
         notify('日记已保存');
       }
-      // 写入已经成功，先让编辑器关闭；列表刷新放到后台。
+      // 写入已经成功，让编辑器立刻关闭；列表刷新放到后台。
       void refresh();
     } catch (error) {
       notify(error instanceof Error ? error.message : '保存失败');
       throw error;
     }
   }
+
   return (
     <div>
       <div className="date-bar">
@@ -121,39 +123,49 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
         )}
       </div>
 
-      {diary ? (
-        <article className="diary-paper">
-          <div className="diary-meta">
-            <span>{formatClock(diary.occurredAt)}</span>
-            <span>{diary.content.length} 字</span>
-            {diary.updatedAt !== diary.createdAt && <span>已编辑</span>}
-          </div>
-          <div className="diary-body">{diary.content}</div>
-          <div className="diary-actions">
-            <button className="btn btn-ghost btn-sm" onClick={() => void removeDiary()}>
-              删除
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)}>
-              编辑
-            </button>
-          </div>
-        </article>
-      ) : (
-        <div className="diary-empty">
-          <p className="diary-empty-title">{fullDayLabel(dayKey)}</p>
-          <p className="diary-empty-sub">这一天还没有日记。</p>
-          <button className="btn btn-primary" onClick={() => setEditing(true)}>
-            写这一天
+      {diaries.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+          <button className="btn btn-primary" onClick={() => setEditing({ mode: 'new' })}>
+            ＋ 写日记
           </button>
         </div>
       )}
 
+      {diaries.length === 0 ? (
+        <div className="diary-empty">
+          <p className="diary-empty-title">{fullDayLabel(dayKey)}</p>
+          <p className="diary-empty-sub">这一天还没有日记。</p>
+          <button className="btn btn-primary" onClick={() => setEditing({ mode: 'new' })}>
+            写这一天
+          </button>
+        </div>
+      ) : (
+        diaries.map((entry) => (
+          <article className="diary-paper" key={entry.id}>
+            <div className="diary-meta">
+              <span>{formatClock(entry.occurredAt)}</span>
+              <span>{entry.content.length} 字</span>
+              {entry.updatedAt !== entry.createdAt && <span>已编辑</span>}
+            </div>
+            <div className="diary-body">{entry.content}</div>
+            <div className="diary-actions">
+              <button className="btn btn-ghost btn-sm" onClick={() => void removeDiary(entry)}>
+                删除
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={() => setEditing({ mode: 'edit', entry })}>
+                编辑
+              </button>
+            </div>
+          </article>
+        ))
+      )}
+
       {editing && (
         <DiaryEditor
-          dayKey={dayKey}
+          draftKey={editing.mode === 'edit' ? `lifeos:draft:entry:${editing.entry.id}` : `lifeos:draft:new:${dayKey}`}
+          initial={editing.mode === 'edit' ? editing.entry.content : ''}
           dayLabel={fullDayLabel(dayKey)}
-          initial={diary?.content ?? ''}
-          onClose={() => setEditing(false)}
+          onClose={() => setEditing(null)}
           onSave={saveDiary}
         />
       )}
