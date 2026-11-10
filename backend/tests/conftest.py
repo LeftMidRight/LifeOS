@@ -57,17 +57,25 @@ TestSession = async_sessionmaker(test_engine, expire_on_commit=False)
 sync_engine = create_engine(SYNC_TEST_URL, pool_pre_ping=True)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def migrate_test_db():
+def make_alembic_config() -> Config:
+    """只使用经过 guard 校验的测试 URL，避免 Alembic 误连默认 .env 数据库。"""
     config = Config("alembic.ini")
     # ConfigParser 会做 % 插值，URL 编码密码里的 % 必须转义成 %% 才能写入。
     config.set_main_option("sqlalchemy.url", SYNC_TEST_URL.replace("%", "%%"))
-    command.upgrade(config, "head")
+    return config
+
+
+@pytest.fixture(scope="session", autouse=True)
+def migrate_test_db():
+    command.upgrade(make_alembic_config(), "head")
 
 
 @pytest.fixture(autouse=True)
 def clean_tables():
     with sync_engine.begin() as conn:
+        # 聊天表有外键，先删子表再删父表；TRUNCATE 父表会被外键拒绝。
+        conn.execute(text("DELETE FROM review_chat_messages"))
+        conn.execute(text("DELETE FROM review_chat_sessions"))
         conn.execute(text("TRUNCATE TABLE ai_insights"))
         conn.execute(text("TRUNCATE TABLE entries"))
     yield

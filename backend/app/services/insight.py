@@ -61,9 +61,9 @@ def _kind_label(kind: str) -> str:
     }.get(kind, kind)
 
 
-def compact_entries(entries: list[Entry]) -> list[dict[str, object]]:
+def compact_entries(entries: list[Entry], limit: int = 200) -> list[dict[str, object]]:
     items: list[dict[str, object]] = []
-    for entry in entries[:200]:
+    for entry in entries[:limit]:
         item: dict[str, object] = {
             "t": to_iso_z(entry.occurred_at),
             "kind": entry.kind,

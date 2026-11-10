@@ -174,7 +174,7 @@ export default function App() {
             {tab === 'diary' && <DiaryView {...viewProps} />}
             {tab === 'ledger' && <LedgerView {...viewProps} />}
             {tab === 'todos' && <TodosView {...viewProps} />}
-            {tab === 'review' && <ReviewView />}
+            {tab === 'review' && <ReviewView llmConfigured={health?.llm.configured === true} />}
           </>
         )}
       </main>

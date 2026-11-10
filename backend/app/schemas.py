@@ -192,3 +192,76 @@ class InsightResponse(CamelModel):
     insight: Insight
     warning: str | None
     stats: Stats
+
+
+ChatMessageText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4_000)
+]
+ChatScope = Literal["daily", "weekly"]
+ChatRole = Literal["user", "assistant"]
+
+
+class ChatMessageCreate(CamelModel):
+    scope: ChatScope | None = None
+    session_id: str | None = None
+    message: ChatMessageText
+
+    @model_validator(mode="after")
+    def require_scope_or_session(self) -> ChatMessageCreate:
+        if self.scope is None and not self.session_id:
+            raise ValueError("必须提供 scope 或 sessionId")
+        return self
+
+
+class ChatMessageRead(CamelModel):
+    id: str
+    session_id: str
+    sequence: int
+    role: ChatRole
+    content: str
+    created_at: datetime
+
+    @field_serializer("created_at")
+    def serialize_datetime(self, value: datetime) -> str:
+        return to_iso_z(value)
+
+
+class ChatSessionSummary(CamelModel):
+    id: str
+    scope: ChatScope
+    period_start: datetime
+    period_end: datetime
+    message_count: int
+    updated_at: datetime
+
+    @field_serializer("period_start", "period_end", "updated_at")
+    def serialize_datetime(self, value: datetime) -> str:
+        return to_iso_z(value)
+
+
+class ChatSessionRead(ChatSessionSummary):
+    created_at: datetime
+    latest_sequence: int
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
+        return to_iso_z(value)
+
+
+class ChatSessionListResponse(CamelModel):
+    items: list[ChatSessionSummary]
+    next_cursor: str | None
+
+
+class ChatViewResponse(CamelModel):
+    session: ChatSessionRead | None
+    messages: list[ChatMessageRead]
+    has_more: bool
+    before_sequence: int | None
+    insight: Insight | None
+    stats: Stats
+
+
+class ChatSendResponse(CamelModel):
+    session: ChatSessionRead
+    messages: list[ChatMessageRead]

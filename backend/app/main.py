@@ -17,6 +17,7 @@ from app.api.routes.capture import router as capture_router
 from app.api.routes.entries import router as entries_router
 from app.api.routes.health import router as health_router
 from app.api.routes.insights import router as insights_router
+from app.api.routes.review_chats import router as review_chats_router
 from app.api.routes.stats import router as stats_router
 from app.config import Settings, get_settings
 from app.core.errors import format_validation_detail
@@ -123,6 +124,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(capture_router, prefix="/api")
     app.include_router(stats_router, prefix="/api")
     app.include_router(insights_router, prefix="/api")
+    app.include_router(review_chats_router, prefix="/api")
 
     # 所有未匹配的 /api 路径（任意方法）都按 spec §8.4 返回 404 JSON。
     api_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]

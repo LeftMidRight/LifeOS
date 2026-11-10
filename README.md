@@ -146,6 +146,11 @@ uv run ruff check .
 | POST | `/api/capture` | 传一句话，服务端解析并落库 |
 | GET | `/api/stats?from&to` | 聚合统计 |
 | GET | `/api/insights?scope=daily\|weekly` | 生成回顾 |
+| GET | `/api/review-chats?scope=daily\|weekly\|all&limit&cursor` | 历史回顾会话列表 |
+| GET | `/api/review-chats/current?scope=daily\|weekly` | 当前周期回顾聊天 |
+| GET | `/api/review-chats/:id?beforeSequence&limit` | 指定回顾会话与消息 |
+| POST | `/api/review-chats/messages` | 发送回顾对话消息 |
+| DELETE | `/api/review-chats/:id` | 删除回顾会话及其消息 |
 
 ## 接上大模型（可选）
 
@@ -168,7 +173,13 @@ LIFEOS_LLM_SESSION_ID=lifeos
 
 `LIFEOS_LLM_SESSION_ID` 会作为 `x-opencode-session` 头发送，供 OpenCode Go 做会话路由；普通 OpenAI 兼容服务可以忽略。
 
-不填也能用：回顾页会自动退化成「本地统计版」摘要。
+不填也能用：回顾页会自动退化成「本地统计版」摘要。回顾页的 AI 对话必须配置模型：聊天会把本周期的记录、统计、回顾摘要和最近对话发送到该服务；消息长期保存在 MySQL，可在历史回顾列表里重新打开或单独删除。
+
+部署新版本前需要执行数据库迁移（新增回顾聊天表）：
+
+```bash
+cd backend && uv run alembic upgrade head
+```
 
 ## 设计原则
 

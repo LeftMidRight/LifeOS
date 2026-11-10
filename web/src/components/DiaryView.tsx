@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Entry } from '../../../shared/schema.ts';
 import { addDays, formatClock, humanDay, toDayKey, weekdayName } from '../../../shared/date.ts';
 import { api } from '../api.ts';
@@ -29,6 +29,9 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
   const today = toDayKey(new Date());
   const [dayKey, setDayKey] = useState(today);
   const [editing, setEditing] = useState<Editing>(null);
+  const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const dayEntries = useMemo(() => entries.filter((entry) => toDayKey(entry.occurredAt) === dayKey), [entries, dayKey]);
 
@@ -46,15 +49,41 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
     setDayKey(next);
   }
 
-  async function removeDiary(entry: Entry) {
+  function requestDelete(entry: Entry) {
+    setDeleteError(null);
+    setPendingDelete(entry);
+  }
+
+  function closeDeleteDialog() {
+    if (deleting) return;
+    setPendingDelete(null);
+    setDeleteError(null);
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await api.remove(entry.id);
+      await api.remove(pendingDelete.id);
       await refresh();
       notify('日记已删除');
+      setPendingDelete(null);
     } catch (error) {
-      notify(error instanceof Error ? error.message : '删除失败');
+      setDeleteError(error instanceof Error ? error.message : '删除失败');
+    } finally {
+      setDeleting(false);
     }
   }
+
+  useEffect(() => {
+    if (!pendingDelete) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeDeleteDialog();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pendingDelete, deleting]);
 
   async function saveDiary(value: string) {
     const current = editing;
@@ -149,7 +178,7 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
             </div>
             <div className="diary-body">{entry.content}</div>
             <div className="diary-actions">
-              <button className="btn btn-ghost btn-sm" onClick={() => void removeDiary(entry)}>
+              <button className="btn btn-ghost btn-sm" onClick={() => requestDelete(entry)}>
                 删除
               </button>
               <button className="btn btn-primary btn-sm" onClick={() => setEditing({ mode: 'edit', entry })}>
@@ -158,6 +187,44 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
             </div>
           </article>
         ))
+      )}
+
+      {pendingDelete && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeDeleteDialog();
+          }}
+        >
+          <div
+            className="modal modal-confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-label="删除日记"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head">
+              <h2>删除这篇日记？</h2>
+            </div>
+            <div className="modal-body">
+              <p>确定删除这篇日记吗？删除后将不再出现在日记列表里。</p>
+              <p className="modal-preview">
+                {pendingDelete.content.slice(0, 80)}
+                {pendingDelete.content.length > 80 ? '…' : ''}
+              </p>
+              {deleteError && <div className="warning">{deleteError}</div>}
+            </div>
+            <div className="modal-foot">
+              <button className="btn btn-ghost btn-sm" onClick={closeDeleteDialog} disabled={deleting}>
+                取消
+              </button>
+              <button className="btn btn-danger btn-sm" onClick={() => void confirmDelete()} disabled={deleting}>
+                {deleting ? '删除中…' : '删除'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {editing && (
