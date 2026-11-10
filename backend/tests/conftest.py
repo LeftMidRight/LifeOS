@@ -93,7 +93,6 @@ async def client() -> AsyncIterator[AsyncClient]:
         async with TestSession() as session:
             try:
                 yield session
-                await session.commit()
             except Exception:
                 await session.rollback()
                 raise

@@ -96,3 +96,22 @@ async def test_stats_missing_range_returns_400(client: AsyncClient):
     body = response.json()
     assert body["error"] == "参数不合法"
     assert "from" in body["detail"] or "to" in body["detail"]
+
+
+async def test_write_is_visible_immediately_after_response(client: AsyncClient):
+    """写路由必须在返回响应前 commit，客户端紧接着的 GET 不能读到旧数据。"""
+    created = await create_sample(client)
+    entry_id = created["id"]
+
+    listing = await client.get("/api/entries")
+    assert any(item["id"] == entry_id for item in listing.json()["items"])
+
+    patched = await client.patch(f"/api/entries/{entry_id}", json={"content": "更新后内容"})
+    assert patched.status_code == 200
+    detail = await client.get(f"/api/entries/{entry_id}")
+    assert detail.json()["content"] == "更新后内容"
+
+    deleted = await client.delete(f"/api/entries/{entry_id}")
+    assert deleted.status_code == 204
+    missing = await client.get(f"/api/entries/{entry_id}")
+    assert missing.status_code == 404

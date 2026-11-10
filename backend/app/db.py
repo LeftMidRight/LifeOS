@@ -14,10 +14,12 @@ SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
+    # 事务由写路由在返回响应前显式 commit；这里只负责异常回滚。
+    # 不在 yield 之后 commit：FastAPI 的 yield dependency teardown 发生在响应发出之后，
+    # 客户端紧接着的 refresh/GET 可能读到旧数据（read-after-write 竞态）。
     async with SessionLocal() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise

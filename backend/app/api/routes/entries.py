@@ -66,6 +66,7 @@ async def get_entry_route(entry_id: str, session: SessionDep) -> EntryRead:
 @router.post("", response_model=EntryRead, status_code=201)
 async def create_entry_route(payload: EntryCreate, session: SessionDep) -> EntryRead:
     entry = await repo_create_entry(session, payload)
+    await session.commit()
     return EntryRead.model_validate(entry)
 
 
@@ -76,6 +77,7 @@ async def update_entry_route(
     entry = await repo_update_entry(session, entry_id, payload)
     if entry is None:
         raise HTTPException(status_code=404, detail="记录不存在")
+    await session.commit()
     return EntryRead.model_validate(entry)
 
 
@@ -83,3 +85,4 @@ async def update_entry_route(
 async def delete_entry_route(entry_id: str, session: SessionDep) -> None:
     if not await repo_delete_entry(session, entry_id):
         raise HTTPException(status_code=404, detail="记录不存在")
+    await session.commit()

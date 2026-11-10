@@ -30,6 +30,7 @@ async def capture_route(payload: CaptureRequest, session: SessionDep) -> Capture
             source="capture",
         ),
     )
+    await session.commit()
     return CaptureResponse(
         entry=EntryRead.model_validate(entry),
         parsed=CaptureParsed.model_validate(parsed),

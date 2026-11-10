@@ -32,4 +32,5 @@ async def insights_route(
     stats = compute_stats(entries, range_from, range_to)
     result = await generate_insight(entries, stats, scope)
     await save_insight(session, result.insight)
+    await session.commit()
     return InsightResponse(insight=result.insight, warning=result.warning, stats=stats)
