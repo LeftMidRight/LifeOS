@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { addDays, formatClock, humanDay, toDayKey, weekdayName } from '../../../shared/date.ts';
 import { api } from '../api.ts';
-import EntryItem from './EntryItem.tsx';
 import DiaryEditor from './DiaryEditor.tsx';
 import type { ViewProps } from './types.ts';
 import { IconChevronLeft, IconChevronRight } from './Icons.tsx';
@@ -37,7 +36,8 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
     return [...journals].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
   }, [dayEntries]);
 
-  const others = dayEntries.filter((entry) => entry.id !== diary?.id);
+  // 日记视图只展示当天的日记；闪念/记账/待办等全部类型在「时间线」查看。
+  // 保存成功后不再 await refresh，避免刷新慢时把编辑器卡在「保存中…」。
 
   function shift(delta: number) {
     const next = toDayKey(addDays(dayDate(dayKey), delta));
@@ -76,13 +76,13 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
         });
         notify('日记已保存');
       }
-      await refresh();
+      // 写入已经成功，先让编辑器关闭；列表刷新放到后台。
+      void refresh();
     } catch (error) {
       notify(error instanceof Error ? error.message : '保存失败');
       throw error;
     }
   }
-
   return (
     <div>
       <div className="date-bar">
@@ -146,15 +146,6 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
             写这一天
           </button>
         </div>
-      )}
-
-      {others.length > 0 && (
-        <section style={{ marginTop: 34 }}>
-          <h2 className="section-title">当天的其他记录 · {others.length}</h2>
-          {others.map((entry) => (
-            <EntryItem key={entry.id} entry={entry} />
-          ))}
-        </section>
       )}
 
       {editing && (

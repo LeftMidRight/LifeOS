@@ -37,6 +37,12 @@ export default function DiaryEditor({ dayKey, initial, dayLabel, onClose, onSave
     }
   });
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  // 用 ref 保证 keydown 回调总是调用当前渲染的 save，避免保存旧的 text/saving。
+  const saveRef = useRef<() => Promise<void>>(save);
+
+  useEffect(() => {
+    saveRef.current = save;
+  });
 
   useEffect(() => {
     areaRef.current?.focus();
@@ -62,13 +68,11 @@ export default function DiaryEditor({ dayKey, initial, dayLabel, onClose, onSave
       }
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault();
-        void save();
+        void saveRef.current();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // save 是函数声明，闭包内始终指向最新实现
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
 
   async function save() {
