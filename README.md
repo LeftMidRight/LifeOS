@@ -149,13 +149,24 @@ uv run ruff check .
 
 ## 接上大模型（可选）
 
-`.env` 里填 `LLM_API_KEY` 即可。兼容任何 OpenAI Chat Completions 协议的服务：
+`.env` 里填 `LIFEOS_LLM_API_KEY` 即可。兼容任何 OpenAI Chat Completions 协议的服务：
 
 ```bash
-LLM_API_KEY=sk-xxx
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_MODEL=deepseek-chat
+LIFEOS_LLM_API_KEY=sk-xxx
+LIFEOS_LLM_BASE_URL=https://api.deepseek.com/v1
+LIFEOS_LLM_MODEL=deepseek-chat
 ```
+
+OpenCode Go（OpenAI 兼容端点，模型 ID 是 `deepseek-v4.1-flash`，`[1M]` 只是 Claude Code 的别名）：
+
+```bash
+LIFEOS_LLM_API_KEY=oc_sk_xxx
+LIFEOS_LLM_BASE_URL=https://opencode.ai/inference/go/openai/v1
+LIFEOS_LLM_MODEL=deepseek-v4.1-flash
+LIFEOS_LLM_SESSION_ID=lifeos
+```
+
+`LIFEOS_LLM_SESSION_ID` 会作为 `x-opencode-session` 头发送，供 OpenCode Go 做会话路由；普通 OpenAI 兼容服务可以忽略。
 
 不填也能用：回顾页会自动退化成「本地统计版」摘要。
 

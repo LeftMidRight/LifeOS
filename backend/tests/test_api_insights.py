@@ -20,7 +20,10 @@ RANGE = "?scope=daily&from=2026-11-09T00:00:00.000Z&to=2026-11-10T00:00:00.000Z"
 
 @pytest.fixture
 def llm_env(monkeypatch):
-    monkeypatch.setenv("LLM_API_KEY", "sk-test")
+    monkeypatch.setenv("LIFEOS_LLM_API_KEY", "sk-test")
+    monkeypatch.setenv("LIFEOS_LLM_BASE_URL", "https://api.deepseek.com/v1")
+    monkeypatch.setenv("LIFEOS_LLM_MODEL", "deepseek-chat")
+    monkeypatch.setenv("LIFEOS_LLM_SESSION_ID", "lifeos-test")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -44,7 +47,7 @@ async def seed_entry(session: AsyncSession):
 async def test_insights_without_key_falls_back(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    monkeypatch.setenv("LLM_API_KEY", "")
+    monkeypatch.setenv("LIFEOS_LLM_API_KEY", "")
     get_settings.cache_clear()
     await seed_entry(session)
 
@@ -53,7 +56,7 @@ async def test_insights_without_key_falls_back(
     body = response.json()
 
     assert body["insight"]["model"] == "local"
-    assert "未配置 LLM_API_KEY" in body["warning"]
+    assert "未配置 LIFEOS_LLM_API_KEY" in body["warning"]
     assert body["insight"]["headline"].startswith("今天")
     assert body["stats"]["totalSpent"] == 32.0
 
@@ -87,6 +90,7 @@ async def test_insights_uses_model_and_saves_snapshot(
     body = response.json()
 
     assert route.called
+    assert route.calls[0].request.headers["x-opencode-session"] == "lifeos-test"
     assert body["warning"] is None
     assert body["insight"]["model"] == "deepseek-chat"
     assert body["insight"]["headline"] == "今天花得不多"
@@ -145,7 +149,7 @@ async def test_insights_falls_back_on_model_failure(
 async def test_insights_default_range_without_key(
     client: AsyncClient, monkeypatch, scope: str
 ):
-    monkeypatch.setenv("LLM_API_KEY", "")
+    monkeypatch.setenv("LIFEOS_LLM_API_KEY", "")
     get_settings.cache_clear()
 
     response = await client.get(f"/api/insights?scope={scope}")
@@ -153,7 +157,7 @@ async def test_insights_default_range_without_key(
     body = response.json()
 
     assert body["insight"]["model"] == "local"
-    assert "未配置 LLM_API_KEY" in body["warning"]
+    assert "未配置 LIFEOS_LLM_API_KEY" in body["warning"]
     assert body["insight"]["scope"] == scope
     assert body["stats"]["from"].endswith("Z")
     assert body["stats"]["to"].endswith("Z")

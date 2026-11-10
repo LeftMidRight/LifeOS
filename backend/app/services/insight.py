@@ -40,9 +40,9 @@ class InsightResult:
 
 def llm_status(settings: Settings) -> dict[str, object]:
     return {
-        "configured": bool(settings.llm_api_key),
-        "model": settings.llm_model,
-        "baseUrl": settings.llm_base_url,
+        "configured": bool(settings.lifeos_llm_api_key),
+        "model": settings.lifeos_llm_model,
+        "baseUrl": settings.lifeos_llm_base_url,
     }
 
 
@@ -118,17 +118,19 @@ async def call_model(entries: list[Entry], stats: Stats, scope: str, settings: S
         "entries": compact_entries(entries),
     }
     body = {
-        "model": settings.llm_model,
+        "model": settings.lifeos_llm_model,
         "temperature": 0.4,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ],
     }
-    url = f"{settings.llm_base_url.rstrip('/')}/chat/completions"
+    url = f"{settings.lifeos_llm_base_url.rstrip('/')}/chat/completions"
     headers = {
         "content-type": "application/json",
-        "authorization": f"Bearer {settings.llm_api_key}",
+        "authorization": f"Bearer {settings.lifeos_llm_api_key}",
+        # OpenCode Go 等网关用它做会话路由；普通 OpenAI 兼容服务会忽略。
+        "x-opencode-session": settings.lifeos_llm_session_id,
     }
 
     async with httpx.AsyncClient(timeout=90.0) as client:
@@ -223,8 +225,8 @@ async def generate_insight(
     settings = settings or get_settings()
     fallback = local_insight(stats, scope)
 
-    if not settings.llm_api_key:
-        return InsightResult(fallback, "未配置 LLM_API_KEY，当前是本地统计版摘要")
+    if not settings.lifeos_llm_api_key:
+        return InsightResult(fallback, "未配置 LIFEOS_LLM_API_KEY，当前是本地统计版摘要")
     if not entries:
         return InsightResult(fallback, None)
 
@@ -244,7 +246,7 @@ async def generate_insight(
             todos=_str(raw.get("todos"), fallback.todos),
             mood=raw.get("mood") if raw.get("mood") in ("up", "flat", "down", "unknown") else "unknown",
             suggestion=_str(raw.get("suggestion"), fallback.suggestion),
-            model=settings.llm_model,
+            model=settings.lifeos_llm_model,
             generated_at=utcnow(),
         )
         return InsightResult(insight, None)

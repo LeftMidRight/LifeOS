@@ -17,9 +17,11 @@ class Settings(BaseSettings):
     lifeos_port: int = 8787
     lifeos_database_url: str
     lifeos_test_database_url: str | None = None
-    llm_api_key: str = ""
-    llm_base_url: str = "https://api.deepseek.com/v1"
-    llm_model: str = "deepseek-chat"
+    # 使用 LIFEOS_ 前缀，避免与本机其他工具的 LLM_* 环境变量冲突
+    lifeos_llm_api_key: str = ""
+    lifeos_llm_base_url: str = "https://api.deepseek.com/v1"
+    lifeos_llm_model: str = "deepseek-chat"
+    lifeos_llm_session_id: str = "lifeos"
     web_dist: str | None = None
 
     @property
