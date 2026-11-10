@@ -194,6 +194,21 @@ class InsightResponse(CamelModel):
     stats: Stats
 
 
+class InsightPreviewResponse(CamelModel):
+    scope: Literal["daily", "weekly"]
+    from_: datetime = Field(alias="from")
+    to: datetime
+    stats: Stats
+    payload: dict[str, Any]
+    payload_text: str
+    insight: Insight | None
+    entry_count: int
+
+    @field_serializer("from_", "to")
+    def serialize_datetime(self, value: datetime) -> str:
+        return to_iso_z(value)
+
+
 ChatMessageText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4_000)
 ]

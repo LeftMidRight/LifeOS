@@ -20,6 +20,14 @@ function fullDayLabel(dayKey: string): string {
 /** 编辑器状态：null = 关闭；'new' = 新写一篇；entry = 编辑这一篇 */
 type Editing = { mode: 'new' } | { mode: 'edit'; entry: Entry } | null;
 
+/** 超过约 4 行（或 160 字）的日记默认折叠，避免长文占满列表。 */
+const PREVIEW_CHARS = 160;
+const PREVIEW_LINES = 4;
+
+function needsCollapse(content: string): boolean {
+  return content.length > PREVIEW_CHARS || content.split('\n').length > PREVIEW_LINES;
+}
+
 /**
  * 日记视图：当天的日记按时间倒序列成记录列表，和「捕捉」是同一种心智模型——
  * 写一篇、保存，它就成为下面的一条记录；一天可以写多篇，每篇都能继续编辑。
@@ -32,6 +40,7 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
   const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
   const dayEntries = useMemo(() => entries.filter((entry) => toDayKey(entry.occurredAt) === dayKey), [entries, dayKey]);
 
@@ -47,6 +56,15 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
     const next = toDayKey(addDays(dayDate(dayKey), delta));
     if (next > today) return;
     setDayKey(next);
+  }
+
+  function toggleExpanded(entryId: string) {
+    setExpandedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(entryId)) next.delete(entryId);
+      else next.add(entryId);
+      return next;
+    });
   }
 
   function requestDelete(entry: Entry) {
@@ -169,24 +187,39 @@ export default function DiaryView({ entries, refresh, notify }: ViewProps) {
           </button>
         </div>
       ) : (
-        diaries.map((entry) => (
-          <article className="diary-paper" key={entry.id}>
-            <div className="diary-meta">
-              <span>{formatClock(entry.occurredAt)}</span>
-              <span>{entry.content.length} 字</span>
-              {entry.updatedAt !== entry.createdAt && <span>已编辑</span>}
-            </div>
-            <div className="diary-body">{entry.content}</div>
-            <div className="diary-actions">
-              <button className="btn btn-ghost btn-sm" onClick={() => requestDelete(entry)}>
-                删除
-              </button>
-              <button className="btn btn-primary btn-sm" onClick={() => setEditing({ mode: 'edit', entry })}>
-                编辑
-              </button>
-            </div>
-          </article>
-        ))
+        diaries.map((entry) => {
+          const collapsible = needsCollapse(entry.content);
+          const expanded = expandedIds.has(entry.id);
+          return (
+            <article className="diary-paper" key={entry.id}>
+              <div className="diary-meta">
+                <span>{formatClock(entry.occurredAt)}</span>
+                <span>{entry.content.length} 字</span>
+                {entry.updatedAt !== entry.createdAt && <span>已编辑</span>}
+              </div>
+              <div className={`diary-body${collapsible && !expanded ? ' is-clamped' : ''}`}>
+                {entry.content}
+              </div>
+              {collapsible && (
+                <button
+                  className="diary-toggle"
+                  aria-expanded={expanded}
+                  onClick={() => toggleExpanded(entry.id)}
+                >
+                  {expanded ? '收起' : '展开全文'}
+                </button>
+              )}
+              <div className="diary-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => requestDelete(entry)}>
+                  删除
+                </button>
+                <button className="btn btn-primary btn-sm" onClick={() => setEditing({ mode: 'edit', entry })}>
+                  编辑
+                </button>
+              </div>
+            </article>
+          );
+        })
       )}
 
       {pendingDelete && (

@@ -961,6 +961,48 @@ button.chip:hover {
   flex-wrap: wrap;
 }
 
+.insight-send-preview {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: 10px 13px;
+}
+
+.insight-send-preview summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.insight-send-preview summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.insight-send-summary {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+.insight-payload {
+  margin: 8px 0 0;
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ── 回顾聊天 ─────────────────────────────────────────── */
 
 .chat-panel {
@@ -1452,6 +1494,29 @@ button.chip:hover {
   color: var(--ink);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 默认预览 4 行（line-height 2 × 4）。展开后移除限制。 */
+.diary-body.is-clamped {
+  max-height: 8em;
+  overflow: hidden;
+}
+
+.diary-toggle {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.diary-toggle:hover {
+  text-decoration: underline;
+}
+
+.diary-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .diary-actions {

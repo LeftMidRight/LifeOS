@@ -19,8 +19,9 @@ from app.core.time import (
     utcnow,
     week_range,
 )
-from app.models import AiInsight, ReviewChatMessage, ReviewChatSession
+from app.models import ReviewChatMessage, ReviewChatSession
 from app.repositories.entries import entries_in_range
+from app.repositories.insights import insight_in_range
 from app.repositories.review_chats import (
     append_messages_if_current,
     create_chat_with_messages,
@@ -109,16 +110,7 @@ def _decode_cursor(cursor: str) -> tuple[datetime, str]:
 async def _insight_for(
     session: AsyncSession, scope: str, start: datetime, end: datetime
 ) -> Insight | None:
-    row = await session.scalar(
-        select(AiInsight)
-        .where(
-            AiInsight.scope == scope,
-            AiInsight.period_start == to_utc_naive(start),
-            AiInsight.period_end == to_utc_naive(end),
-        )
-        .order_by(AiInsight.created_at.desc())
-        .limit(1)
-    )
+    row = await insight_in_range(session, scope, start, end)
     return Insight.model_validate(row.payload) if row is not None else None
 
 

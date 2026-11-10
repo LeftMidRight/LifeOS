@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -21,6 +22,23 @@ async def save_insight(session: AsyncSession, insight: Insight) -> AiInsight:
     session.add(row)
     await session.flush()
     return row
+
+
+async def insight_in_range(
+    session: AsyncSession, scope: str, from_: datetime, to: datetime
+) -> AiInsight | None:
+    """返回指定 scope 与完整时间范围匹配的最近一条回顾快照。"""
+    result = await session.execute(
+        select(AiInsight)
+        .where(
+            AiInsight.scope == scope,
+            AiInsight.period_start == to_utc_naive(from_),
+            AiInsight.period_end == to_utc_naive(to),
+        )
+        .order_by(AiInsight.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 async def latest_insight(session: AsyncSession, scope: str) -> dict | None:

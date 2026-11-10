@@ -179,3 +179,76 @@ async def test_insights_empty_range_with_key_falls_back_without_warning(
     assert body["stats"]["entryCount"] == 0
     assert body["stats"]["from"].endswith("Z")
     assert body["stats"]["to"].endswith("Z")
+
+
+async def test_preview_returns_payload_without_calling_model(
+    client: AsyncClient, session: AsyncSession, llm_env
+):
+    """预览只能读数据，不能触发模型调用。"""
+    await seed_entry(session)
+    route = respx.post(URL)
+
+    response = await client.get(f"/api/insights/preview{RANGE}")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert not route.called
+    assert body["entryCount"] == 1
+    assert body["insight"] is None
+    assert "午饭 32 元" in body["payloadText"]
+    assert body["payload"]["stats"]["总支出"] == 32.0
+    assert body["payloadText"] == json.dumps(body["payload"], ensure_ascii=False)
+
+
+@respx.mock
+async def test_preview_payload_matches_the_real_model_request(
+    client: AsyncClient, session: AsyncSession, llm_env
+):
+    await seed_entry(session)
+    preview = (await client.get(f"/api/insights/preview{RANGE}")).json()
+
+    route = respx.post(URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "headline": "h",
+                                    "summary": "s",
+                                    "themes": [],
+                                    "spending": "s",
+                                    "todos": "t",
+                                    "mood": "unknown",
+                                    "suggestion": "x",
+                                },
+                                ensure_ascii=False,
+                            )
+                        }
+                    }
+                ]
+            },
+        )
+    )
+    await client.get(f"/api/insights{RANGE}")
+
+    sent = json.loads(route.calls[0].request.content.decode())["messages"][1]["content"]
+    assert sent == preview["payloadText"]
+
+
+async def test_preview_returns_latest_saved_insight(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    monkeypatch.setenv("LIFEOS_LLM_API_KEY", "")
+    get_settings.cache_clear()
+    await seed_entry(session)
+    try:
+        generated = (await client.get(f"/api/insights{RANGE}")).json()
+        preview = (await client.get(f"/api/insights/preview{RANGE}")).json()
+    finally:
+        get_settings.cache_clear()
+
+    assert preview["insight"]["headline"] == generated["insight"]["headline"]
+    assert preview["insight"]["model"] == "local"

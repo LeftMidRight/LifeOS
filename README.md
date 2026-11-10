@@ -145,6 +145,7 @@ uv run ruff check .
 | DELETE | `/api/entries/:id` | 软删除 |
 | POST | `/api/capture` | 传一句话，服务端解析并落库 |
 | GET | `/api/stats?from&to` | 聚合统计 |
+| GET | `/api/insights/preview?scope=daily\|weekly` | 预览将发送给模型的回顾输入（不调用模型） |
 | GET | `/api/insights?scope=daily\|weekly` | 生成回顾 |
 | GET | `/api/review-chats?scope=daily\|weekly\|all&limit&cursor` | 历史回顾会话列表 |
 | GET | `/api/review-chats/current?scope=daily\|weekly` | 当前周期回顾聊天 |
@@ -173,7 +174,7 @@ LIFEOS_LLM_SESSION_ID=lifeos
 
 `LIFEOS_LLM_SESSION_ID` 会作为 `x-opencode-session` 头发送，供 OpenCode Go 做会话路由；普通 OpenAI 兼容服务可以忽略。
 
-不填也能用：回顾页会自动退化成「本地统计版」摘要。回顾页的 AI 对话必须配置模型：聊天会把本周期的记录、统计、回顾摘要和最近对话发送到该服务；消息长期保存在 MySQL，可在历史回顾列表里重新打开或单独删除。
+回顾页打开时只读取已保存的回顾和发送预览，不会自动调用模型；点「发送给大模型生成回顾」时才真正请求模型，并可展开「查看发送内容」核对将要发送的 JSON。不填 Key 时无法在页面生成新回顾，但已保存的回顾和聊天历史仍可查看。回顾页的 AI 对话必须配置模型：聊天会把本周期的记录、统计、回顾摘要和最近对话发送到该服务；消息长期保存在 MySQL，可在历史回顾列表里重新打开或单独删除。
 
 部署新版本前需要执行数据库迁移（新增回顾聊天表）：
 

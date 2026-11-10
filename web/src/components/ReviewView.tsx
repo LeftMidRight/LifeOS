@@ -6,6 +6,7 @@ import type {
   ChatScopeFilter,
   ChatSessionSummary,
   ChatView,
+  InsightPreview,
   InsightResponse,
 } from '../api.ts';
 import { api } from '../api.ts';
@@ -58,8 +59,11 @@ interface Props {
 export default function ReviewView({ llmConfigured }: Props) {
   const [scope, setScope] = useState<Scope>('daily');
   const [data, setData] = useState<ReviewData | null>(null);
+  const [preview, setPreview] = useState<InsightPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   const [chat, setChat] = useState<ChatView | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -110,12 +114,18 @@ export default function ReviewView({ llmConfigured }: Props) {
     setChatError(null);
     setSelectedSessionId(null);
     setSendError(null);
+    setGenerateError(null);
     setChat(null);
     try {
-      // 先刷新本周期摘要快照，再读取只读的当前聊天，保证对话上下文和页面摘要一致。
-      const result = await api.insight(target);
+      // 只读预览：展示已保存的回顾和将要发送给模型的内容，不触发生成。
+      const previewResult = await api.insightPreview(target);
       if (id !== requestId.current) return;
-      setData(result);
+      setPreview(previewResult);
+      setData({
+        insight: previewResult.insight,
+        stats: previewResult.stats,
+        warning: null,
+      });
       const view = await api.chatCurrent(target);
       if (id !== requestId.current) return;
       setChat(view);
@@ -146,11 +156,29 @@ export default function ReviewView({ llmConfigured }: Props) {
   const insight = data?.insight;
   const stats = data?.stats;
 
+  async function generateInsight() {
+    const id = requestId.current;
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const result = await api.insight(scope);
+      if (id !== requestId.current) return;
+      setData(result);
+      setPreview((previous) => (previous ? { ...previous, insight: result.insight } : previous));
+    } catch (err) {
+      if (id !== requestId.current) return;
+      setGenerateError(err instanceof Error ? err.message : '生成失败');
+    } finally {
+      if (id === requestId.current) setGenerating(false);
+    }
+  }
+
   async function selectSession(sessionId: string) {
     const id = ++requestId.current;
     setChatLoading(true);
     setChatError(null);
     setSendError(null);
+    setPreview(null);
     try {
       const view = await api.chatSession(sessionId, { limit: 100 });
       if (id !== requestId.current) return;
@@ -332,9 +360,15 @@ export default function ReviewView({ llmConfigured }: Props) {
             </>
           ) : (
             <div className="warning" style={{ marginTop: 20 }}>
-              这个周期没有保存的回顾摘要，只能查看聊天记录。
+              {selectedSessionId
+                ? '这个周期没有保存的回顾摘要，只能查看聊天记录。'
+                : llmConfigured
+                  ? '还没有生成过回顾。可以把本周期记录发送给大模型生成一份。'
+                  : '还没有生成过回顾。配置 LIFEOS_LLM_API_KEY 后才能生成。'}
             </div>
           )}
+
+          {generateError && <div className="warning">{generateError}</div>}
 
           <div className="review-foot">
             <span>
@@ -343,12 +377,26 @@ export default function ReviewView({ llmConfigured }: Props) {
                 : `共 ${stats?.entryCount ?? 0} 条记录`}
             </span>
             {!selectedSessionId && (
-              <button className="btn btn-ghost btn-sm" onClick={() => void loadCurrent(scope)}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => void generateInsight()}
+                disabled={!llmConfigured || generating}
+              >
                 <IconRefresh size={14} />
-                重新生成
+                {generating ? '正在生成…' : insight ? '重新生成' : '发送给大模型生成回顾'}
               </button>
             )}
           </div>
+
+          {!selectedSessionId && preview && (
+            <details className="insight-send-preview">
+              <summary>查看发送内容</summary>
+              <p className="insight-send-summary">
+                将发送 {preview.entryCount} 条记录（含统计与记录原文）。
+              </p>
+              <pre className="insight-payload">{preview.payloadText}</pre>
+            </details>
+          )}
 
           {data.warning && <div className="warning">{data.warning}</div>}
         </>

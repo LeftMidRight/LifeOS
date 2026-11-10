@@ -52,6 +52,17 @@ export interface InsightResponse {
   stats: Stats;
 }
 
+export interface InsightPreview {
+  scope: 'daily' | 'weekly';
+  from: string;
+  to: string;
+  stats: Stats;
+  payload: Record<string, unknown>;
+  payloadText: string;
+  insight: Insight | null;
+  entryCount: number;
+}
+
 export type ChatScope = 'daily' | 'weekly';
 export type ChatScopeFilter = ChatScope | 'all';
 
@@ -122,6 +133,9 @@ export const api = {
   remove: (id: string) => request<void>(`/api/entries/${id}`, { method: 'DELETE' }),
 
   insight: (scope: 'daily' | 'weekly') => request<InsightResponse>(`/api/insights?scope=${scope}`),
+
+  insightPreview: (scope: 'daily' | 'weekly') =>
+    request<InsightPreview>(`/api/insights/preview?scope=${scope}`),
 
   chatList: (params: { scope?: ChatScopeFilter; limit?: number; cursor?: string } = {}) => {
     const qs = new URLSearchParams();

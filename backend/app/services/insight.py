@@ -109,20 +109,29 @@ def parse_json_loose(text: str) -> dict[str, object]:
         raise ValueError("模型返回的不是合法 JSON")
 
 
-async def call_model(entries: list[Entry], stats: Stats, scope: str, settings: Settings) -> dict:
-    payload = {
+def build_insight_payload(entries: list[Entry], stats: Stats, scope: str) -> dict[str, object]:
+    """构造发给模型的回顾输入。预览接口与真实调用共用，保证看到的就是发出的。"""
+    return {
         "scope": scope,
         "from": to_iso_z(stats.from_),
         "to": to_iso_z(stats.to),
         "stats": _stats_payload(stats),
         "entries": compact_entries(entries),
     }
+
+
+def payload_text(payload: dict[str, object]) -> str:
+    return json.dumps(payload, ensure_ascii=False)
+
+
+async def call_model(entries: list[Entry], stats: Stats, scope: str, settings: Settings) -> dict:
+    payload = build_insight_payload(entries, stats, scope)
     body = {
         "model": settings.lifeos_llm_model,
         "temperature": 0.4,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            {"role": "user", "content": payload_text(payload)},
         ],
     }
     url = f"{settings.lifeos_llm_base_url.rstrip('/')}/chat/completions"

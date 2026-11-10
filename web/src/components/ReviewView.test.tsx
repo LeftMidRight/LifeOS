@@ -7,6 +7,7 @@ import type {
   ChatSendResult,
   ChatSession,
   ChatView,
+  InsightPreview,
   InsightResponse,
 } from '../api.ts';
 import { api } from '../api.ts';
@@ -15,6 +16,7 @@ import ReviewView from './ReviewView.tsx';
 vi.mock('../api.ts', () => ({
   api: {
     insight: vi.fn(),
+    insightPreview: vi.fn(),
     chatList: vi.fn(),
     chatCurrent: vi.fn(),
     chatSession: vi.fn(),
@@ -52,6 +54,20 @@ const insight = {
 
 function insightResponse(): InsightResponse {
   return { insight, warning: null, stats };
+}
+
+function makePreview(overrides: Partial<InsightPreview> = {}): InsightPreview {
+  return {
+    scope: 'daily',
+    from: stats.from,
+    to: stats.to,
+    stats,
+    payload: { scope: 'daily', entries: [{ text: '今天的日记' }] },
+    payloadText: '{\n  "scope": "daily"\n}',
+    insight,
+    entryCount: 1,
+    ...overrides,
+  };
 }
 
 function makeSession(id = 'chat-1', scope: 'daily' | 'weekly' = 'daily'): ChatSession {
@@ -92,6 +108,7 @@ function makeView(overrides: Partial<ChatView> = {}): ChatView {
 
 function mockBase() {
   vi.mocked(api.insight).mockResolvedValue(insightResponse());
+  vi.mocked(api.insightPreview).mockResolvedValue(makePreview());
   vi.mocked(api.chatList).mockResolvedValue({ items: [], nextCursor: null });
   vi.mocked(api.chatCurrent).mockResolvedValue(makeView());
   vi.mocked(api.chatSession).mockResolvedValue(makeView());
@@ -117,7 +134,8 @@ describe('ReviewView 回顾聊天', () => {
 
     expect(await screen.findByText('今天还不错')).toBeVisible();
     expect(screen.getByText('今天感觉如何？')).toBeVisible();
-    await waitFor(() => expect(api.insight).toHaveBeenCalledWith('daily'));
+    await waitFor(() => expect(api.insightPreview).toHaveBeenCalledWith('daily'));
+    expect(api.insight).not.toHaveBeenCalled();
     expect(api.chatCurrent).toHaveBeenCalledWith('daily');
   });
 
@@ -139,6 +157,8 @@ describe('ReviewView 回顾聊天', () => {
     expect(await screen.findByText('这是本周的消息')).toBeVisible();
     expect(screen.queryByText('今天感觉如何？')).not.toBeInTheDocument();
     expect(api.chatCurrent).toHaveBeenLastCalledWith('weekly');
+    expect(api.insightPreview).toHaveBeenLastCalledWith('weekly');
+    expect(api.insight).not.toHaveBeenCalled();
   });
 
   it('选择历史会话后展示历史摘要与消息，不重新生成摘要', async () => {
@@ -172,7 +192,8 @@ describe('ReviewView 回顾聊天', () => {
     expect(await screen.findByText('旧会话里的回答')).toBeVisible();
     expect(screen.getByText('旧周期的回顾')).toBeVisible();
     expect(api.chatSession).toHaveBeenCalledWith('old-chat', expect.anything());
-    expect(api.insight).toHaveBeenCalledTimes(1);
+    // 历史会话只读快照，不触发生成（预览也不算生成）。
+    expect(api.insight).not.toHaveBeenCalled();
   });
 
   it('加载更早消息时把结果插到列表前面', async () => {
@@ -264,6 +285,8 @@ describe('ReviewView 回顾聊天', () => {
     renderReview(false);
 
     expect(await screen.findByRole('textbox', { name: '聊天输入' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '重新生成' })).toBeDisabled();
+    expect(screen.getByText('查看发送内容')).toBeVisible();
     expect(screen.getByText(/未配置模型/)).toBeVisible();
     expect(screen.getByRole('region', { name: '历史回顾' })).toBeVisible();
   });
@@ -273,6 +296,35 @@ describe('ReviewView 回顾聊天', () => {
     expect(
       await screen.findByText(/聊天会把本周期的记录和对话发送到已配置的模型服务/)
     ).toBeVisible();
+  });
+
+  it('点击发送给大模型才生成回顾', async () => {
+    vi.mocked(api.insightPreview).mockResolvedValue(makePreview({ insight: null }));
+    vi.mocked(api.insight).mockResolvedValue({
+      insight: { ...insight, headline: '新生成的回顾' },
+      warning: null,
+      stats,
+    });
+    const user = userEvent.setup();
+    renderReview();
+
+    expect(await screen.findByText(/还没有生成过回顾/)).toBeVisible();
+    expect(api.insight).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: '发送给大模型生成回顾' }));
+
+    expect(await screen.findByText('新生成的回顾')).toBeVisible();
+    expect(api.insight).toHaveBeenCalledWith('daily');
+  });
+
+  it('可以查看将发送给模型的内容', async () => {
+    renderReview();
+
+    const summary = await screen.findByText('查看发送内容');
+    expect(summary).toBeVisible();
+    expect(summary.closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByText(/将发送 1 条记录/)).toBeInTheDocument();
+    expect(screen.getByText(/"scope": "daily"/)).toBeInTheDocument();
   });
 
   it('历史列表按浏览器本地日期显示周期', async () => {

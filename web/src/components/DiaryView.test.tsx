@@ -151,3 +151,58 @@ describe('DiaryView 删除确认', () => {
     expect(screen.getByRole('dialog', { name: /删除日记/ })).toBeVisible();
   });
 });
+
+function renderDiaries(entries: Entry[]) {
+  const refresh = vi.fn().mockResolvedValue(undefined);
+  const notify = vi.fn();
+  render(<DiaryView entries={entries} refresh={refresh} notify={notify} />);
+}
+
+describe('DiaryView 日记折叠', () => {
+  it('短日记不显示展开按钮', () => {
+    renderDiary();
+    expect(screen.queryByRole('button', { name: '展开全文' })).not.toBeInTheDocument();
+  });
+
+  it('长日记默认折叠，可展开和收起', async () => {
+    const user = userEvent.setup();
+    const longContent = '长'.repeat(200);
+    renderDiary(makeDiary({ content: longContent }));
+
+    const body = screen.getByText(longContent);
+    expect(body).toHaveClass('is-clamped');
+    const expand = screen.getByRole('button', { name: '展开全文' });
+    expect(expand).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(expand);
+
+    expect(body).not.toHaveClass('is-clamped');
+    expect(screen.getByRole('button', { name: '收起' })).toHaveAttribute('aria-expanded', 'true');
+
+    await user.click(screen.getByRole('button', { name: '收起' }));
+    expect(body).toHaveClass('is-clamped');
+  });
+
+  it('多换行的短文本也视为长日记', () => {
+    renderDiary(makeDiary({ content: '一\n二\n三\n四\n五\n六' }));
+    expect(screen.getByRole('button', { name: '展开全文' })).toBeVisible();
+  });
+
+  it('多篇长日记的展开状态互不影响', async () => {
+    const user = userEvent.setup();
+    const first = '一'.repeat(200);
+    const second = '二'.repeat(200);
+    renderDiaries([
+      makeDiary({ id: 'd1', content: first }),
+      makeDiary({ id: 'd2', content: second }),
+    ]);
+
+    expect(screen.getAllByRole('button', { name: '展开全文' })).toHaveLength(2);
+    await user.click(screen.getAllByRole('button', { name: '展开全文' })[0]);
+
+    expect(screen.getByText(first)).not.toHaveClass('is-clamped');
+    expect(screen.getByText(second)).toHaveClass('is-clamped');
+    expect(screen.getAllByRole('button', { name: '展开全文' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: '收起' })).toBeVisible();
+  });
+});
