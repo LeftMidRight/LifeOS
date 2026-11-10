@@ -2,7 +2,7 @@
    只缓存「应用外壳」，不缓存任何 /api/ 响应。
    原因：数据必须永远是最新的（多端共享同一份），缓存接口会造成「看起来同步了其实是旧的」。 */
 
-const CACHE = 'lifeos-shell-v1';
+const CACHE = 'lifeos-shell-v2';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
